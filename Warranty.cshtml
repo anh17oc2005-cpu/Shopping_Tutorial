@@ -1,0 +1,71 @@
+﻿@model ProductWarrantyModel
+@{
+    ViewBag.Title = "Warranty List";
+    var warrantyProducts = ViewBag.ProductWarranty as List<ProductWarrantyModel>;
+}
+
+<h3>Product Warranties:</h3>
+@if (warrantyProducts != null && warrantyProducts.Any())
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Product Name</th>
+                <th>Description</th>
+                <th>Date Start</th>
+                <th>Date Expired</th>
+                <th>Status</th>
+                <th>Expired</th>
+               
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var warranty in warrantyProducts)
+            {
+                <tr>
+                    <td>@warranty.Id</td>
+                    <td>@warranty.Product.Name</td>
+                    <td>@warranty.Description</td>
+                    <td>@warranty.DateStart.ToShortDateString()</td>
+                    <td>@warranty.DateExpired.ToShortDateString()</td>
+                    <td>
+                        @if (warranty.Status == 1)
+                        {
+                            <span class="badge bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">Expired</span>
+                        }
+                    </td>
+                    <td>
+                        @if (warranty.DateExpired < DateTime.Now)
+                        {
+                            <span class="text text-danger">Expired</span>
+                        }
+                        else
+                        {
+                            TimeSpan remainingTime = warranty.DateExpired - DateTime.Now; //6 ngày
+                            int daysRemaining = remainingTime.Days;
+                            @if (daysRemaining == 0)
+                            {
+                                <span class="text text-danger">Today</span>
+                            }
+                            else
+                            {
+                                <span class="text text-success">@daysRemaining days left</span>
+                            }
+
+                        }
+                    </td>
+                 
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No warranty products found for this user.</p>
+}
