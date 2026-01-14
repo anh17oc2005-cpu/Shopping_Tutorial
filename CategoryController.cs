@@ -1,15 +1,11 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-
 using Shopping_Tutorial.Models;
 using Shopping_Tutorial.Repository;
+using System.Globalization;
 
-namespace Shopping_Tutorial.Areas.Admin.Controllers
+namespace Shopping_Tutorial.Controllers
 {
-    [Area("Admin")]
-    [Route("Admin/Category")]
-    [Authorize(Roles = "Publisher,Author,Admin")]
     public class CategoryController : Controller
     {
         private readonly DataContext _dataContext;
@@ -17,127 +13,60 @@ namespace Shopping_Tutorial.Areas.Admin.Controllers
         {
             _dataContext = context;
         }
-
-
-        [Route("Index")]
-        public async Task<IActionResult> Index(int pg = 1)
+        public async Task<IActionResult> Index(string slug = "", string sort_by = "", string startprice = "", string endprice = "")
         {
-            List<CategoryModel> category = _dataContext.Categories.ToList(); //33 datas
+
+            CategoryModel category = _dataContext.Categories.Where(c => c.Slug == slug).FirstOrDefault();
 
 
-            const int pageSize = 10; //10 items/trang
-
-            if (pg < 1) //page < 1;
+            if (category == null)
             {
-                pg = 1; //page ==1
-            }
-            int recsCount = category.Count(); //33 items;
-
-            var pager = new Paginate(recsCount, pg, pageSize);
-
-            int recSkip = (pg - 1) * pageSize; //(3 - 1) * 10; 
-
-            //category.Skip(20).Take(10).ToList()
-
-            var data = category.Skip(recSkip).Take(pager.PageSize).ToList();
-
-            ViewBag.Pager = pager;
-
-            return View(data);
-        }
-
-        [Route("Create")]
-
-        public IActionResult Create()
-        {
-            return View();
-        }
-
-        [Route("Create")]
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(CategoryModel category)
-        {
-            if (ModelState.IsValid)
-            {
-                category.Slug = category.Name.Replace(" ", "-");
-                var slug = await _dataContext.Categories.FirstOrDefaultAsync(p => p.Slug == category.Slug);
-                if (slug != null)
-                {
-                    ModelState.AddModelError("", "Danh mục đã có trong database");
-                    return View(category);
-                }
-
-                _dataContext.Add(category);
-                await _dataContext.SaveChangesAsync();
-                TempData["success"] = "Thêm danh mục thành công";
                 return RedirectToAction("Index");
-
             }
-            else
+            ViewBag.Slug = slug;
+            //lấy tất cả sản phẩm
+            IQueryable<ProductModel> productsByCategory = _dataContext.Products.Where(p => p.CategoryId == category.Id);
+            var count = await productsByCategory.CountAsync();
+            if (count > 0)
             {
-                TempData["error"] = "Model có một vài thứ đang lỗi";
-                List<string> errors = new List<string>();
-                foreach (var value in ModelState.Values)
+                if (sort_by == "price_increase")
                 {
-                    foreach (var error in value.Errors)
+                    productsByCategory = productsByCategory.OrderBy(p => p.Price);
+                }
+                else if (sort_by == "price_decrease")
+                {
+                    productsByCategory = productsByCategory.OrderByDescending(p => p.Price);
+                }
+                else if (sort_by == "price_newest")
+                {
+                    productsByCategory = productsByCategory.OrderByDescending(p => p.Id);
+                }
+                else if (sort_by == "price_oldest")
+                {
+                    productsByCategory = productsByCategory.OrderBy(p => p.Id);
+                }
+                //loc gia sp
+                else if (startprice != "" && endprice != "")
+                {
+                    decimal startPriceValue;
+                    decimal endPriceValue;
+
+                    if (decimal.TryParse(startprice, out startPriceValue) && decimal.TryParse(endprice, out endPriceValue))
                     {
-                        errors.Add(error.ErrorMessage);
+                        productsByCategory = productsByCategory.Where(p => p.Price >= startPriceValue && p.Price <= endPriceValue);
+                    }
+                    else
+                    {
+                        productsByCategory = productsByCategory.OrderByDescending(p => p.Id);
                     }
                 }
-                string errorMessage = string.Join("\n", errors);
-                return BadRequest(errorMessage);
-            }
-            return View(category);
-        }
-
-        [Route("Edit")]
-        public async Task<IActionResult> Edit(int Id)
-        {
-            CategoryModel category = await _dataContext.Categories.FindAsync(Id);
-            return View(category);
-        }
-
-        [Route("Edit")]
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(CategoryModel category)
-        {
-            if (ModelState.IsValid)
-            {
-                category.Slug = category.Name.Replace(" ", "-");
-
-                _dataContext.Update(category);
-                await _dataContext.SaveChangesAsync();
-                TempData["success"] = "Cập nhật danh mục thành công";
-                return RedirectToAction("Index");
-
-            }
-            else
-            {
-                TempData["error"] = "Model có một vài thứ đang lỗi";
-                List<string> errors = new List<string>();
-                foreach (var value in ModelState.Values)
+                else
                 {
-                    foreach (var error in value.Errors)
-                    {
-                        errors.Add(error.ErrorMessage);
-                    }
+                    productsByCategory = productsByCategory.OrderByDescending(p => p.Id);
                 }
-                string errorMessage = string.Join("\n", errors);
-                return BadRequest(errorMessage);
             }
-            return View(category);
-        }
 
-        public async Task<IActionResult> Delete(int Id)
-        {
-            CategoryModel category = await _dataContext.Categories.FindAsync(Id);
-
-            _dataContext.Categories.Remove(category);
-            await _dataContext.SaveChangesAsync();
-            TempData["success"] = "Danh mục đã được xóa thành công";
-            return RedirectToAction("Index");
+            return View(await productsByCategory.ToListAsync());
         }
     }
 }
